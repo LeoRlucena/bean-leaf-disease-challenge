@@ -37,6 +37,26 @@ def split_summary(dataset: DatasetDict) -> pd.DataFrame:
             )
     return pd.DataFrame(rows)
 
+def class_distribution(dataset: DatasetDict) -> pd.DataFrame:
+    """Distribuição de classes por split."""
+    names = class_names(dataset)
+    rows: list[dict[str, object]] = []
+    for split, ds in dataset.items():
+        counts = pd.Series(ds["labels"]).value_counts().sort_index()
+        total = len(ds)
+        for label_id, label_name in enumerate(names):
+            count = int(counts.get(label_id, 0))
+            rows.append(
+                {
+                    "split": split,
+                    "label_id": label_id,
+                    "class_name": label_name,
+                    "count": count,
+                    "proportion": count / total if total else 0.0,
+                }
+            )
+    return pd.DataFrame(rows)
+
 def _generator(ds: Dataset) -> Iterable[tuple[object, int]]:
     for sample in ds:
         yield sample["image"], sample["labels"]
@@ -58,7 +78,7 @@ def make_tf_dataset(
         for image, label in _generator(ds):
             yield tf.convert_to_tensor(image.convert("RGB")), label
 
-    tf_ds = tf.Data.Dataset.from_generator(gen, output_signature=output_signature)
+    tf_ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
 
     def preprocess(image: tf.Tensor, label: tf.Tensor):
         image = tf.image.resize(image, image_size)
