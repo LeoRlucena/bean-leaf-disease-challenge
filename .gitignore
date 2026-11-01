@@ -221,3 +221,11 @@ __marimo__/
 
 # Data files
 *.csv
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Photos
+*.jpg
+*.jpeg
+*.png
