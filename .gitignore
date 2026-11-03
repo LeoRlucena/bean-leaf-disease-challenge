@@ -221,6 +221,8 @@ __marimo__/
 
 # Data files
 *.csv
+*.keras
+*.json
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
