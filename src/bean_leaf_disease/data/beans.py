@@ -91,5 +91,10 @@ def make_tf_dataset(
     return (
         tf_ds.map(preprocess, num_parallel_calls=tf.data.AUTOTUNE)
         .batch(batch_size)
+        .apply(
+            tf.data.experimental.assert_cardinality(
+                (len(ds) + batch_size - 1) // batch_size
+            )
+        )
         .prefetch(tf.data.AUTOTUNE)
     )
