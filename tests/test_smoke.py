@@ -14,12 +14,29 @@ def test_backbones_catalog():
 
 def test_build_transfer_model_frozen_head():
     """build_transfer_model monta a saída de 3 classes com o backbone congelado."""
-    from bean_leaf_disease.models import build_transfer_model
+    from bean_leaf_disease.models import build_transfer_model, get_backbone
 
     model = build_transfer_model("MobileNetV2", num_classes=3, image_size=(96, 96))
     assert model.output_shape == (None, 3)
     # Backbone congelado por padrão (feature extraction): há pesos não treináveis.
     assert len(model.non_trainable_weights) > 0
+    assert get_backbone(model).trainable is False
+
+
+def test_enable_finetune_unfreezes_tail():
+    """enable_finetune libera só as últimas camadas do backbone."""
+    from bean_leaf_disease.models import (
+        build_transfer_model,
+        enable_finetune,
+        get_backbone,
+    )
+
+    model = build_transfer_model("MobileNetV2", num_classes=3, image_size=(96, 96))
+    enable_finetune(model, unfreeze_last=5)
+    backbone = get_backbone(model)
+    assert backbone.trainable is True
+    assert backbone.layers[-1].trainable is True
+    assert backbone.layers[0].trainable is False
 
 
 def test_gradcam_heatmap_shape_and_range():

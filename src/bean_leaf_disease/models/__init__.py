@@ -1,13 +1,12 @@
-"""Modelos de Transfer Learning (etapa 4).
+"""Modelos de Transfer Learning (etapa 5 / Entrega 2).
 
-Este módulo reúne o estudo de arquiteturas candidatas e um construtor genérico de
-modelo de Transfer Learning. Na Entrega 1 (checkpoint) o objetivo é selecionar e
-justificar a arquitetura; o treino de fato fica para a Entrega 2. O construtor
-`build_transfer_model` já deixa o pipeline pronto para essa etapa.
+Este módulo reúne o estudo de arquiteturas candidatas, o construtor
+`build_transfer_model` e helpers de fine-tuning usados na Parte C do notebook 05.
 """
 
 from __future__ import annotations
 
+import numpy as np
 from tensorflow import keras
 from tensorflow.keras import layers
 
@@ -17,7 +16,7 @@ from bean_leaf_disease.data.beans import DEFAULT_IMAGE_SIZE
 #
 # Fonte: documentação oficial do Keras Applications (keras.io/api/applications),
 # referência ImageNet (entrada 224 x 224, top-1 single-crop). Os valores alimentam
-# a tabela comparativa e o gráfico do notebook 04 e embasam a justificativa da escolha.
+# a tabela comparativa e o gráfico do notebook 05 e embasam a justificativa da escolha.
 #
 # Campos:
 #   keras_app       nome da fábrica em tf.keras.applications
@@ -127,4 +126,54 @@ def build_transfer_model(
     x = layers.Dropout(dropout)(x)
     outputs = layers.Dense(num_classes, activation="softmax")(x)
 
-    return keras.Model(inputs, outputs, name=f"transfer_{backbone.lower()}")
+    model = keras.Model(inputs, outputs, name=f"transfer_{backbone.lower()}")
+    # Referência explícita ao backbone aninhado (fine-tune / Grad-CAM).
+    model.backbone = base_model
+    return model
+
+
+def get_backbone(model: keras.Model) -> keras.Model:
+    """Devolve o backbone aninhado de um modelo criado por `build_transfer_model`."""
+    backbone = getattr(model, "backbone", None)
+    if isinstance(backbone, keras.Model):
+        return backbone
+
+    for layer in model.layers:
+        if isinstance(layer, keras.Model) and len(layer.layers) > 1:
+            return layer
+    raise ValueError(
+        "Não encontrei um backbone aninhado. Use um modelo de build_transfer_model."
+    )
+
+
+def enable_finetune(
+    model: keras.Model,
+    *,
+    unfreeze_last: int = 40,
+) -> keras.Model:
+    """Libera as últimas `unfreeze_last` camadas do backbone para fine-tuning.
+
+    Mantém as camadas iniciais congeladas (features genéricas de ImageNet) e
+    treina só o topo do extrator + o classificador — padrão seguro em datasets
+    pequenos como o Beans (~1k imagens de treino).
+    """
+    if unfreeze_last < 1:
+        raise ValueError("unfreeze_last deve ser >= 1.")
+
+    backbone = get_backbone(model)
+    backbone.trainable = True
+    freeze_until = max(0, len(backbone.layers) - unfreeze_last)
+    for layer in backbone.layers[:freeze_until]:
+        layer.trainable = False
+    for layer in backbone.layers[freeze_until:]:
+        layer.trainable = True
+    return model
+
+
+def count_trainable_weights(model: keras.Model) -> tuple[int, int]:
+    """Retorna (parâmetros treináveis, parâmetros não treináveis)."""
+    trainable = int(sum(int(np.prod(w.shape)) for w in model.trainable_weights))
+    non_trainable = int(
+        sum(int(np.prod(w.shape)) for w in model.non_trainable_weights)
+    )
+    return trainable, non_trainable

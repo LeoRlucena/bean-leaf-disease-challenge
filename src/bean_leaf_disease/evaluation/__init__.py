@@ -1,4 +1,4 @@
-"""Grad-CAM para explicabilidade (etapa 4, bônus).
+"""Grad-CAM para explicabilidade (etapa 5, bônus).
 
 Grad-CAM (Gradient-weighted Class Activation Mapping) destaca as regiões da imagem
 que mais influenciaram a predição de uma classe. Serve para verificar a hipótese
