@@ -20,10 +20,12 @@ from tensorflow import keras
 def find_last_conv_layer(model: keras.Model) -> str:
     """Retorna o nome da última camada convolucional do modelo.
 
-    Percorre as camadas de trás para frente procurando uma saída 4D (lote, altura,
-    largura, canais) — o mapa de ativação sobre o qual o Grad-CAM opera. No baseline
+    Percorre as camadas de trás para frente e prioriza `Conv2D` (ou subclasses).
+    Só usa outra camada com saída 4D (ex.: MaxPooling) se não houver convolução —
+    assim o Grad-CAM não cai no pooling seguinte ao último bloco conv. No baseline
     do notebook 03 isso corresponde a `conv2d_2`.
     """
+    fallback_4d: str | None = None
     for layer in reversed(model.layers):
         output_shape = getattr(layer, "output_shape", None)
         if output_shape is None:
@@ -32,8 +34,14 @@ def find_last_conv_layer(model: keras.Model) -> str:
                 output_shape = layer.output.shape
             except AttributeError:
                 continue
-        if isinstance(output_shape, (list, tuple)) and len(output_shape) == 4:
+        if not (isinstance(output_shape, (list, tuple)) and len(output_shape) == 4):
+            continue
+        if isinstance(layer, keras.layers.Conv2D):
             return layer.name
+        if fallback_4d is None:
+            fallback_4d = layer.name
+    if fallback_4d is not None:
+        return fallback_4d
     raise ValueError("Nenhuma camada convolucional (saída 4D) encontrada no modelo.")
 
 

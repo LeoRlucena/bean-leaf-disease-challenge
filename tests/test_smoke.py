@@ -41,3 +41,23 @@ def test_gradcam_heatmap_shape_and_range():
     heatmap = make_gradcam_heatmap(img, model, "conv")
     assert heatmap.shape == (16, 16)
     assert 0.0 <= float(heatmap.min()) and float(heatmap.max()) <= 1.0
+
+
+def test_find_last_conv_skips_pooling():
+    """Com Conv2D seguida de MaxPooling, o alvo do Grad-CAM deve ser a Conv2D."""
+    from tensorflow import keras
+
+    from bean_leaf_disease.evaluation import find_last_conv_layer
+
+    model = keras.Sequential(
+        [
+            keras.layers.Input(shape=(32, 32, 3)),
+            keras.layers.Conv2D(8, 3, activation="relu", name="conv_a"),
+            keras.layers.MaxPooling2D(name="pool_a"),
+            keras.layers.Conv2D(16, 3, activation="relu", name="conv_b"),
+            keras.layers.MaxPooling2D(name="pool_b"),
+            keras.layers.GlobalAveragePooling2D(),
+            keras.layers.Dense(3, activation="softmax"),
+        ]
+    )
+    assert find_last_conv_layer(model) == "conv_b"
