@@ -14,12 +14,29 @@ def test_backbones_catalog():
 
 def test_build_transfer_model_frozen_head():
     """build_transfer_model monta a saída de 3 classes com o backbone congelado."""
-    from bean_leaf_disease.models import build_transfer_model
+    from bean_leaf_disease.models import build_transfer_model, get_backbone
 
     model = build_transfer_model("MobileNetV2", num_classes=3, image_size=(96, 96))
     assert model.output_shape == (None, 3)
     # Backbone congelado por padrão (feature extraction): há pesos não treináveis.
     assert len(model.non_trainable_weights) > 0
+    assert get_backbone(model).trainable is False
+
+
+def test_enable_finetune_unfreezes_tail():
+    """enable_finetune libera só as últimas camadas do backbone."""
+    from bean_leaf_disease.models import (
+        build_transfer_model,
+        enable_finetune,
+        get_backbone,
+    )
+
+    model = build_transfer_model("MobileNetV2", num_classes=3, image_size=(96, 96))
+    enable_finetune(model, unfreeze_last=5)
+    backbone = get_backbone(model)
+    assert backbone.trainable is True
+    assert backbone.layers[-1].trainable is True
+    assert backbone.layers[0].trainable is False
 
 
 def test_gradcam_heatmap_shape_and_range():
@@ -41,3 +58,23 @@ def test_gradcam_heatmap_shape_and_range():
     heatmap = make_gradcam_heatmap(img, model, "conv")
     assert heatmap.shape == (16, 16)
     assert 0.0 <= float(heatmap.min()) and float(heatmap.max()) <= 1.0
+
+
+def test_find_last_conv_skips_pooling():
+    """Com Conv2D seguida de MaxPooling, o alvo do Grad-CAM deve ser a Conv2D."""
+    from tensorflow import keras
+
+    from bean_leaf_disease.evaluation import find_last_conv_layer
+
+    model = keras.Sequential(
+        [
+            keras.layers.Input(shape=(32, 32, 3)),
+            keras.layers.Conv2D(8, 3, activation="relu", name="conv_a"),
+            keras.layers.MaxPooling2D(name="pool_a"),
+            keras.layers.Conv2D(16, 3, activation="relu", name="conv_b"),
+            keras.layers.MaxPooling2D(name="pool_b"),
+            keras.layers.GlobalAveragePooling2D(),
+            keras.layers.Dense(3, activation="softmax"),
+        ]
+    )
+    assert find_last_conv_layer(model) == "conv_b"
